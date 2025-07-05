@@ -4,7 +4,7 @@ An E2E Realtime Fraud Detection System with Agnetic Support and Analysis
 ## User Journey
 ### 1. Login/Register
 - [] Register using OTP
-- [X] Login using OTP
+- [] Login using OTP
 - [ ] Login Attempts
 
 ### 2. Agnetic based Risk Score Analysis 
@@ -30,7 +30,7 @@ An E2E Realtime Fraud Detection System with Agnetic Support and Analysis
 - [ ] Dynamic Dashboard
 
 ### 2. Real Time Monitoring 
-- [X] Real time transaction display
+- [] Real time transaction display
 - [ ] Alert System for Fraudulent Transaction (Ongoing)
 - [ ] Queryinng/Filtering Transaction
 - [ ] Export as PDF (Optional)
