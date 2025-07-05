@@ -34,7 +34,7 @@ def fin_user_update(phone_number,user_ip,user_country,device_type):
 
 
 def transaction_log(upi_id,transaction_id, transaction_amount, transaction_duration,user_ip,user_country,status, risk_score,device_type):
-    transaction_log_user={'user_id':upi_id,'transaction_id':transaction_id,'transaction_amount':transaction_amount, 'transaction_duration':transaction_duration,'user_ip':user_ip,'user_country':user_country, 'status':status,'risk_score':risk_score,'device_type':device_type,}
+    transaction_log_user={'user_id':upi_id,'transaction_id':transaction_id,'transaction_amount':transaction_amount, 'transaction_duration':transaction_duration,'user_ip':user_ip,'user_country':user_country, 'status':status,'risk_score':risk_score,'device_type':device_type}
     return db.transaction.insert_one(transaction_log_user)
 
 def transaction_status_update(trans_id,status):
