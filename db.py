@@ -33,12 +33,16 @@ def fin_user_update(phone_number,user_ip,user_country,device_type):
 
 
 
-def transaction_log(upi_id,transaction_id, transaction_amount, transaction_duration,user_ip,user_country,status):
-    transaction_log_user={'user_id':upi_id,'transaction_id':transaction_id,'transaction_amount':transaction_amount, 'transaction_duration':transaction_duration,'user_ip':user_ip,'user_country':user_country, 'status':status}
+def transaction_log(upi_id,transaction_id, transaction_amount, transaction_duration,user_ip,user_country,device_type,status, risk_score):
+    transaction_log_user={'user_id':upi_id,'transaction_id':transaction_id,'transaction_amount':transaction_amount, 'transaction_duration':transaction_duration,'user_ip':user_ip,'user_country':user_country, 'device_type':device_type, 'status':status,'risk_score':risk_score}
     return db.transaction.insert_one(transaction_log_user)
 
 def transaction_status_update(trans_id,status):
     return db.transaction.update_one({'transaction_id':trans_id},{"$set":{'status':status}})
+
+
+def transaction_risk_score_update(trans_id,risk_score):
+    return db.transaction.update_one({'transaction_id':trans_id},{"$set":{'risk_score':risk_score}})
 
 # def transaction_time_update(time_in_ms):
 #     return db.transaction.update_one({'transaction_id':trans_id},{"$set":{'transaction_duration':time_in_ms}})

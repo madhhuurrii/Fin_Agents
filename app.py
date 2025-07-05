@@ -22,6 +22,7 @@ from db import *
 # from db import add_comment, fin_user, transaction_log, transaction_log_find, profile_transaction,transaction_status_update, all_transaction, fin_user_login
 import pickle
 import numpy as np
+from sklearn.preprocessing import StandardScaler
 import pandas as pd
 
 app = Flask(__name__)
@@ -48,75 +49,7 @@ bedrock = boto3.client(
     
 )
 
-# Prompt template builder
-def build_prompt(data):
-    return f"""
-You are a cybersecurity and fraud analysis expert AI. 
 
-Based on the following transaction metadata, analyze and return a single JSON object with a risk score between 0 (no risk) and 1 (very high risk).
-
-Use your understanding of common fraud patterns (like high amounts, suspicious IPs, failed logins, unfamiliar devices or locations).
-
-Respond in this format: {{"risk_score": float}}
-
-Transaction metadata:
-Amount: {data['amount']}
-Location (State): {data['location']}
-IP Address: {data['ip']}
-Device Type: {data['device_type']}
-Login Attempt: {data['login_attempt']}
-"""
-
-@app.route("/risk-score", methods=["GET","POST"])
-def risk_score():
-    try:
-        # input_data = request.get_json()
-
-        input_data = {
-            "amount": 4800,
-            "location": "Uttar Pradesh",
-            "ip": "192.168.2.35",
-            "device_type": "Android",
-            "login_attempt": "Failure"
-            }
-
-        # Validate input fields
-        required_fields = ['amount', 'location', 'ip', 'device_type', 'login_attempt']
-        for field in required_fields:
-            if field not in input_data:
-                return jsonify({"error": f"Missing field: {field}"}), 400
-
-        # Build prompt
-        prompt = build_prompt(input_data)
-
-        # Claude 3 Sonnet request
-        response = bedrock.invoke_model(
-            modelId="anthropic.claude-3-sonnet-20240229-v1:0",
-            contentType="application/json",
-            accept="application/json",
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 100,
-                "temperature": 0.2,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
-            })
-        )
-
-        # Parse response
-        model_response = json.loads(response['body'].read().decode())
-        assistant_msg = model_response['content'][0]['text'].strip()
-
-        # Parse JSON result from Claude
-        risk_result = json.loads(assistant_msg)
-        return jsonify(risk_result)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 # Dashboard
@@ -169,6 +102,86 @@ def monitor():
 
 
 
+# Prompt template builder
+def build_prompt(data):
+    return f"""
+You are a cybersecurity and fraud analysis expert AI. 
+
+Based on the following transaction metadata, analyze and return a single JSON object with a risk score between 0 (no risk) and 1 (very high risk).
+
+Use your understanding of common fraud patterns (like high amounts, suspicious IPs, failed logins, unfamiliar devices or locations).
+
+Respond in this format: {{"risk_score": float}}
+
+Transaction metadata:
+Amount: {data['amount']}
+Location (State): {data['location']}
+IP Address: {data['ip']}
+Device Type: {data['device_type']}
+Login Attempt: {data['login_attempt']}
+"""
+
+@app.route("/risk-score", methods=["GET","POST"])
+def risk_score():
+    try:
+        # input_data = request.get_json()
+        data = transaction_log_find(session['trans_id'])
+        print(data)
+        input_data = {
+            "amount": data['transaction_amount'],
+            "location": data['user_country'],
+            "ip": data['user_ip'],
+            "device_type": data['device_type'],
+            "login_attempt": 1
+            }
+
+        # Validate input fields
+        required_fields = ['amount', 'location', 'ip', 'device_type', 'login_attempt']
+        for field in required_fields:
+            if field not in input_data:
+                return jsonify({"error": f"Missing field: {field}"}), 400
+
+        # Build prompt
+        prompt = build_prompt(input_data)
+
+        # Claude 3 Sonnet request
+        response = bedrock.invoke_model(
+            modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps({
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 100,
+                "temperature": 0.2,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            })
+        )
+
+        # Parse response
+        model_response = json.loads(response['body'].read().decode())
+        assistant_msg = model_response['content'][0]['text'].strip()
+
+        # Parse JSON result from Claude
+        risk_result = json.loads(assistant_msg)
+        print(risk_result['risk_score'])
+        # return jsonify(risk_result)
+        # session['risk_score']=risk_result['risk_score']
+
+        transaction_risk_score_update(session['trans_id'],risk_result['risk_score'])
+        return redirect(url_for('predict'))
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+
+
 # mock payments (FinPay)
 @app.route("/payments", methods=['GET','POST'])
 def payments():
@@ -190,8 +203,13 @@ def payments():
         time_in_ms = int(total_time * 1000)
         transaction_duration=time_in_ms
         print(transaction_duration)
-        transaction_log(upi_id,transaction_id,transaction_amount, transaction_duration,user_ip,user_country, status)
-        return redirect(url_for('predict'))
+        device_type= session['device_type']
+        # print(risk_score)
+        # risk_score=session['risk_score']
+        # print(risk_score)
+        risk_score=0
+        transaction_log(upi_id,transaction_id,transaction_amount, transaction_duration,user_ip,user_country, device_type,status, risk_score)
+        return redirect(url_for('risk_score'))
     
     
     print(session['number'])
@@ -204,12 +222,14 @@ def payments():
 # Fraud Detection Model
 @app.route("/predict",methods=['GET','POST'])
 def predict():
-    scaler = pickle.load(open("scaler.pkl", 'rb'))
+    # scaler = pickle.load(open("scaler.pkl", 'rb'))
+    
     model = pickle.load(open("isolation_forest_model.pkl", 'rb'))
     # print(session['trans_id'])
     data = transaction_log_find(session['trans_id'])
     # print(data)
-    input_data = pd.DataFrame([{'TransactionAmount': int(data['transaction_amount']), 'TransactionDuration': int(data['transaction_duration']), 'AccountBalance': 3000.00, 'LoginAttempts': 1}])
+    # Transaction Duration (ms)', 'Transaction Amount', 'Login Attempt
+    input_data = pd.DataFrame([{'Transaction Amount': int(data['transaction_amount']), 'Transaction Duration (ms)': int(data['transaction_duration']), 'Login Attempt': 1}])
     
     
 #     input_data = pd.DataFrame([
@@ -227,9 +247,10 @@ def predict():
 
     # Fill missing values if any
     input_data = input_data.fillna(input_data.mean())
-
+    scaler = StandardScaler()
+    # X_scaled = scaler.fit_transform(X)
     # Scale and predict
-    input_scaled = scaler.transform(input_data)
+    input_scaled = scaler.fit_transform(input_data)
     predictions = model.predict(input_scaled)
 
     # Interpret results
@@ -338,6 +359,12 @@ def verify_otp_route():
 def login():
     if request.method == 'POST':
         session["number"] = "+91"+request.form['phone_number']
+        user_agent = request.headers.get('User-Agent')
+        user_agent_parsed = parse(user_agent)
+        device_type = ("Mobile" if user_agent_parsed.is_mobile else
+                        "Tablet" if user_agent_parsed.is_tablet else
+                        "Desktop")
+        session['device_type']=device_type
         phone_number="+91"+request.form['phone_number']
         otp = generate_otp()
         send_otp(phone_number,otp)
