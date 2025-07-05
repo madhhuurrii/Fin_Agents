@@ -208,7 +208,7 @@ def payments():
         # risk_score=session['risk_score']
         # print(risk_score)
         risk_score=0
-        transaction_log(upi_id,transaction_id,transaction_amount, transaction_duration,user_ip,user_country, device_type,status, risk_score)
+        transaction_log(upi_id,transaction_id,transaction_amount, transaction_duration,user_ip,user_country,status, risk_score,device_type)
         return redirect(url_for('risk_score'))
     
     
